@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2b1d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>AtelierAR</title>
+<style>
+:root{--bg:#1d140c;--card:#2b1d12;--line:#4a3523;--tx:#f3e9dc;--mu:#b7a58f;--ac:#ffb347;--ac2:#e08a1e}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+header{padding:14px 16px 6px;display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0}
+header small{color:var(--mu)}
+.view{display:none;padding:8px 14px 20px}
+.view.on{display:block}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;background:none;border:0;color:var(--mu);padding:10px 4px;font-size:12px}
+nav button b{display:block;font-size:20px}
+nav button.on{color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+.card h3{margin:0 0 8px;font-size:14px;color:var(--ac)}
+button.btn,label.btn{display:inline-block;background:var(--ac);color:#2b1d12;border:0;border-radius:10px;padding:10px 14px;font-weight:700;font-size:14px;margin:3px 3px 3px 0}
+button.btn.sec,label.btn.sec{background:#3a2a1b;color:var(--tx);border:1px solid var(--line)}
+button.btn.on{outline:2px solid #fff}
+button.btn:disabled{opacity:.4}
+select,input[type=text],input[type=number]{background:#150e08;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:14px;width:100%}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--mu);font-size:13px}
+.big{font-size:22px;font-weight:700;color:var(--ac)}
+canvas#pc{width:100%;background:#000;border-radius:10px;touch-action:none;display:block}
+#sc{width:100%;height:42vh;border-radius:12px;overflow:hidden;background:#150e08;touch-action:none}
+#sc canvas{display:block}
+.part{border:1px solid var(--line);border-radius:10px;padding:8px;margin:8px 0;background:#241810}
+.prow{display:flex;gap:6px;margin-bottom:6px}
+.prow .nm{flex:1}
+.prow select{width:90px}
+.prow input[type=color]{width:42px;padding:0;height:38px}
+.prow .x{background:#5a2b22;color:#fff;border:0;border-radius:8px;width:38px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid label{font-size:11px;color:var(--mu)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+#ov{display:none;position:fixed;inset:0;pointer-events:none;color:#fff;font-family:system-ui,sans-serif}
+#ov .top{position:absolute;top:0;left:0;right:0;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:linear-gradient(#000a,#0000)}
+#ov #hud{font-size:20px;font-weight:700;color:var(--ac)}
+#ov #hint{font-size:13px;opacity:.9}
+#ov .bot{position:absolute;left:0;right:0;bottom:0;padding:10px 10px calc(14px + env(safe-area-inset-bottom));display:flex;gap:6px;flex-wrap:wrap;justify-content:center;background:linear-gradient(#0000,#000a);pointer-events:auto}
+#ov button{background:#000b;color:#fff;border:1px solid #fff5;border-radius:22px;padding:10px 14px;font-size:14px}
+#ov button.q{background:#a33}
+</style>
+</head>
+<body>
+<header><span style="font-size:26px">🪚</span><div><h1>AtelierAR</h1><small>Mesurer · Coter · Modéliser · Poser en AR</small></div></header>
+
+<!-- ============ MESURER (AR) ============ -->
+<section class="view on" id="v-m">
+  <div class="card">
+    <h3>Mesure en réalité augmentée</h3>
+    <div class="row">
+      <select id="mmode">
+        <option value="box">Volume : pavé / cube (L × l × H)</option>
+        <option value="cyl">Volume : cylindre (Ø × H)</option>
+        <option value="dist">Distance entre deux points</option>
+      </select>
+    </div>
+    <p class="muted" id="mhelp"></p>
+    <button class="btn" id="mstart">Lancer la mesure AR</button>
+    <p class="muted" id="msupport"></p>
+  </div>
+  <div class="card" id="mres" style="display:none">
+    <h3>Dernière mesure</h3>
+    <div class="big" id="mresTxt"></div>
+    <div class="muted" id="mresSub"></div>
+    <button class="btn sec" id="msave">Enregistrer</button>
+  </div>
+  <div class="card">
+    <h3>Mesures enregistrées</h3>
+    <div id="mhist" class="muted">Aucune pour l'instant.</div>
+    <button class="btn sec" id="mclear">Tout effacer</button>
+  </div>
+</section>
+
+<!-- ============ PHOTO ============ -->
+<section class="view" id="v-p">
+  <div class="card">
+    <h3>Photo-cotation</h3>
+    <div class="row">
+      <label class="btn">📷 Prendre une photo<input type="file" id="pfile" accept="image/*" capture="environment" hidden></label>
+      <label class="btn sec">🖼 Galerie<input type="file" id="pfile2" accept="image/*" hidden></label>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn sec on" id="tdim">📏 Coter</button>
+      <button class="btn sec" id="tcal">🎯 Étalonner</button>
+      <button class="btn sec" id="pundo">↩ Annuler</button>
+      <button class="btn sec" id="pclr">🗑 Effacer</button>
+      <button class="btn sec" id="pexp">💾 Exporter</button>
+    </div>
+    <label class="muted"><input type="checkbox" id="portho" checked> Aligner à l'horizontale / verticale</label>
+    <p class="muted" id="phint">1) Prenez la photo bien de face. 2) « Étalonner » : tracez une ligne sur un objet de taille connue (mètre, feuille A4 = 29,7 cm) posé dans le même plan que le meuble. 3) « Coter » : tracez vos lignes, la valeur s'affiche en cm.</p>
+  </div>
+  <canvas id="pc" width="800" height="600"></canvas>
+</section>
+
+<!-- ============ ATELIER 3D ============ -->
+<section class="view" id="v-a">
+  <div id="sc"></div>
+  <div class="card">
+    <div class="row">
+      <input type="text" id="mname" placeholder="Nom du meuble" style="flex:1">
+      <button class="btn" id="msv">Enregistrer</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <select id="mload" style="flex:1"></select>
+      <button class="btn sec" id="mld">Ouvrir</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <select id="mpre" style="flex:1"><option value="table">Modèle : Table</option><option value="etagere">Modèle : Étagère</option><option value="tabouret">Modèle : Tabouret</option></select>
+      <button class="btn sec" id="mpreb">Charger</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn sec" id="mexp">Exporter JSON</button>
+      <label class="btn sec">Importer<input type="file" id="mimp" accept=".json,application/json" hidden></label>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Dimensions globales</h3>
+    <div class="big" id="mglob"></div>
+    <button class="btn" id="mar" style="margin-top:8px">📲 Poser dans la pièce (AR, échelle 1:1)</button>
+    <p class="muted" id="masupport"></p>
+  </div>
+  <div class="card">
+    <h3>Pièces (en cm)</h3>
+    <div class="row"><button class="btn sec" id="addbox">+ Pavé</button><button class="btn sec" id="addcyl">+ Cylindre</button></div>
+    <div id="parts"></div>
+  </div>
+  <div class="card">
+    <h3>Liste de débit</h3>
+    <div id="cut"></div>
+  </div>
+</section>
+
+<!-- ============ Overlay AR ============ -->
+<div id="ov">
+  <div class="top"><div id="hud"></div><div id="hint"></div></div>
+  <div class="bot" id="obot"></div>
+</div>
+
+<nav>
+  <button class="on" data-v="m"><b>📐</b>Mesurer</button>
+  <button data-v="p"><b>📷</b>Photo</button>
+  <button data-v="a"><b>🪑</b>Atelier 3D</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const store={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const fmt=n=>(Math.round(n*10)/10).toLocaleString('fr-FR');
+let curView='m';
+
+/* ---------- Navigation ---------- */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  curView=b.dataset.v;
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+curView));
+  if(curView==='a')setTimeout(resizeEditor,50);
+});
+
+/* =====================================================================
+   RÉALITÉ AUGMENTÉE (WebXR) — mesure + pose du meuble
+   ===================================================================== */
+const AR={r:null,scene:null,cam:null,session:null,hit:null,reticle:null,mode:null,pts:[],objs:[],group:null,yaw:0,frozen:false,hAdj:0,res:null};
+const NEED={dist:2,box:4,cyl:3};
+const HELP={
+  box:'Posez le réticule sur un coin au sol et touchez : 1) coin de départ, 2) fin de la longueur, 3) fin de la largeur, 4) un point sur le dessus du meuble (hauteur). Ajustez la hauteur au demi-centimètre avec + / −.',
+  cyl:'Touchez : 1) centre de la base, 2) un point du bord (le rayon), 3) un point sur le dessus (hauteur).',
+  dist:'Touchez deux points : la distance s\'affiche en direct, avec ses composantes horizontale et verticale.'
+};
+async function arSupported(){
+  try{return !!(navigator.xr&&await navigator.xr.isSessionSupported('immersive-ar'))}catch(e){return false}
+}
+function setSupportMsgs(ok){
+  const msg=ok?'✅ AR disponible sur cet appareil.':'⚠️ La AR navigateur (WebXR) n\'est pas disponible ici : elle fonctionne sur Android avec Chrome + Google Play Services pour la RA. Sur iPhone, utilisez l\'onglet Photo et l\'Atelier 3D (voir README pour la version native ARKit).';
+  $('#msupport').textContent=msg;$('#masupport').textContent=ok?'':msg;
+}
+arSupported().then(setSupportMsgs);
+$('#mmode').onchange=()=>$('#mhelp').textContent=HELP[$('#mmode').value];
+$('#mhelp').textContent=HELP.box;
+
+function ensureAR(){
+  if(AR.r)return;
+  AR.r=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  AR.r.setPixelRatio(window.devicePixelRatio);
+  AR.r.xr.enabled=true;
+  AR.scene=new THREE.Scene();
+  AR.cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.01,30);
+  AR.scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1.1));
+  const d=new THREE.DirectionalLight(0xffffff,0.8);d.position.set(1,3,2);AR.scene.add(d);
+  const ret=new THREE.Mesh(new THREE.RingGeometry(0.035,0.05,32).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffb347}));
+  ret.matrixAutoUpdate=false;ret.visible=false;AR.scene.add(ret);AR.reticle=ret;
+}
+async function startAR(mode){
+  if(!(await arSupported())){alert('La réalité augmentée navigateur n\'est pas disponible sur cet appareil. Voir l\'onglet Photo.');return}
+  ensureAR();
+  Object.assign(AR,{mode,pts:[],hAdj:0,yaw:0,frozen:false,res:null});
+  clearObjs();
+  if(AR.group){AR.scene.remove(AR.group);AR.group=null}
+  const ov=$('#ov');
+  buildOverlayButtons();
+  if(mode==='place'){
+    AR.group=buildGroup(model);AR.group.scale.setScalar(0.01);AR.group.visible=false;AR.scene.add(AR.group);
+    $('#hint').textContent='Visez le sol, le meuble suit le réticule. Touchez pour le fixer, retouchez pour le déplacer.';
+    $('#hud').textContent=globalDimsText();
+  }else{
+    $('#hint').textContent=hintFor();$('#hud').textContent='';
+  }
+  let session;
+  try{
+    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:ov}});
+  }catch(e){alert('Impossible de démarrer la AR : '+e.message);return}
+  AR.session=session;
+  ov.style.display='block';
+  document.body.appendChild(AR.r.domElement);
+  AR.r.domElement.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1';
+  ov.style.zIndex=2;
+  AR.r.xr.setReferenceSpaceType('local');
+  await AR.r.xr.setSession(session);
+  const vs=await session.requestReferenceSpace('viewer');
+  AR.hit=await session.requestHitTestSource({space:vs});
+  ov.addEventListener('beforexrselect',e=>e.preventDefault());
+  session.addEventListener('select',onSelect);
+  session.addEventListener('end',()=>{
+    AR.r.setAnimationLoop(null);AR.hit=null;AR.session=null;
+    ov.style.display='none';
+    if(AR.r.domElement.parentNode)AR.r.domElement.parentNode.removeChild(AR.r.domElement);
+    AR.reticle.visible=false;
+    if(AR.mode!=='place'&&AR.res)showResult(AR.res);
+  });
+  AR.r.setAnimationLoop((t,frame)=>{
+    if(frame){
+      const ref=AR.r.xr.getReferenceSpace();
+      const hits=AR.hit?frame.getHitTestResults(AR.hit):[];
+      if(hits.length){
+        const pose=hits[0].getPose(ref);
+        AR.reticle.visible=true;AR.reticle.matrix.fromArray(pose.transform.matrix);
+        if(AR.mode==='place'&&!AR.frozen&&AR.group){
+          AR.group.visible=true;
+          AR.group.position.setFromMatrixPosition(AR.reticle.matrix);
+          AR.group.rotation.y=AR.yaw;
+        }
+      }else AR.reticle.visible=false;
+    }
+    AR.r.render(AR.scene,AR.cam);
+  });
+}
+function reticlePos(){return new THREE.Vector3().setFromMatrixPosition(AR.reticle.matrix)}
+function onSelect(){
+  if(!AR.reticle.visible)return;
+  if(AR.mode==='place'){AR.frozen=!AR.frozen;return}
+  if(AR.pts.length>=NEED[AR.mode])return;
+  AR.pts.push(reticlePos());
+  updMeasure();
+}
+function buildOverlayButtons(){
+  const b=$('#obot');b.innerHTML='';
+  const add=(t,fn,cls)=>{const x=document.createElement('button');x.textContent=t;x.onclick=fn;if(cls)x.className=cls;b.appendChild(x)};
+  if(AR.mode==='place'){
+    add('⟲ −15°',()=>{AR.yaw-=Math.PI/12});
+    add('⟳ +15°',()=>{AR.yaw+=Math.PI/12});
+    add('Déplacer',()=>{AR.frozen=false});
+  }else{
+    add('↩ Point',()=>{AR.pts.pop();updMeasure()});
+    add('Reset',()=>{AR.pts=[];AR.hAdj=0;updMeasure()});
+    if(AR.mode!=='dist'){add('H −0,5',()=>{AR.hAdj-=0.005;updMeasure()});add('H +0,5',()=>{AR.hAdj+=0.005;updMeasure()})}
+  }
+  add('Terminer',()=>{if(AR.session)AR.session.end()},'q');
+}
+function hintFor(){
+  const n=AR.pts.length,m=AR.mode;
+  const T={box:['Touchez le coin de départ','Touchez la fin de la longueur','Touchez la fin de la largeur','Touchez le dessus du meuble (hauteur)','Mesure complète — ajustez ou terminez'],
+           cyl:['Touchez le centre de la base','Touchez un point du bord','Touchez le dessus (hauteur)','Mesure complète — terminez'],
+           dist:['Touchez le premier point','Touchez le second point','Mesure complète — terminez']};
+  return T[m][Math.min(n,T[m].length-1)];
+}
+function clearObjs(){AR.objs.forEach(o=>{AR.scene.remove(o);o.traverse&&o.traverse(c=>{c.geometry&&c.geometry.dispose()})});AR.objs=[]}
+function addObj(o){AR.scene.add(o);AR.objs.push(o)}
+const hd=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
+const cm=m=>m*100;
+function lineBetween(a,b,col){
+  const g=new THREE.BufferGeometry().setFromPoints([a,b]);
+  return new THREE.Line(g,new THREE.LineBasicMaterial({color:col||0xffb347}));
+}
+function wireBox(L,H,W,center,rotY,fill){
+  const g=new THREE.BoxGeometry(L,Math.max(H,0.002),Math.max(Math.abs(W),0.002));
+  const grp=new THREE.Group();
+  grp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:fill})));
+  grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:0xffffff})));
+  grp.position.copy(center);grp.rotation.y=rotY;return grp;
+}
+function updMeasure(){
+  clearObjs();
+  const P=AR.pts,m=AR.mode;let res=null;
+  P.forEach(p=>{const s=new THREE.Mesh(new THREE.SphereGeometry(0.008),new THREE.MeshBasicMaterial({color:0xff4040}));s.position.copy(p);addObj(s)});
+  if(m==='dist'&&P.length>=2){
+    addObj(lineBetween(P[0],P[1]));
+    const d=cm(P[0].distanceTo(P[1])),h=cm(hd(P[0],P[1])),v=cm(Math.abs(P[0].y-P[1].y));
+    res={kind:'Distance',main:fmt(d)+' cm',sub:'Horizontal '+fmt(h)+' cm · Vertical '+fmt(v)+' cm'};
+  }
+  if(m==='box'&&P.length>=2){
+    const A=P[0],B=P[1];const L=hd(A,B);
+    const u=new THREE.Vector3(B.x-A.x,0,B.z-A.z).normalize();const n=new THREE.Vector3(-u.z,0,u.x);
+    let W=0,H=0;
+    if(P.length>=3){W=new THREE.Vector3(P[2].x-A.x,0,P[2].z-A.z).dot(n)}
+    if(P.length>=4){H=Math.max(0.001,Math.abs(P[3].y-A.y)+AR.hAdj)}
+    const hh=P.length>=4?H:0.003;
+    const c=new THREE.Vector3(A.x+u.x*L/2+n.x*W/2,A.y+hh/2,A.z+u.z*L/2+n.z*W/2);
+    addObj(wireBox(L,hh,P.length>=3?W:0.003,c,Math.atan2(-u.z,u.x),P.length>=4?0.3:0.15));
+    res={kind:'Pavé',L:cm(L),l:cm(Math.abs(W)),H:cm(H)};
+    res.main=fmt(res.L)+' × '+fmt(res.l)+' × '+fmt(res.H)+' cm';
+    res.sub='Volume '+fmt(res.L*res.l*res.H/1000)+' L';
+  }
+  if(m==='cyl'&&P.length>=2){
+    const A=P[0],r=hd(A,P[1]);let H=0;
+    if(P.length>=3)H=Math.max(0.001,Math.abs(P[2].y-A.y)+AR.hAdj);
+    const hh=P.length>=3?H:0.003;
+    const g=new THREE.CylinderGeometry(r,r,hh,48);
+    const grp=new THREE.Group();
+    grp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:P.length>=3?0.3:0.15})));
+    grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(g),new THREE.LineBasicMaterial({color:0xffffff})));
+    grp.position.set(A.x,A.y+hh/2,A.z);addObj(grp);
+    res={kind:'Cylindre',D:cm(2*r),H:cm(H)};
+    res.main='Ø '+fmt(res.D)+' × H '+fmt(res.H)+' cm';
+    res.sub='Volume '+fmt(Math.PI*Math.pow(res.D/2,2)*res.H/1000)+' L';
+  }
+  AR.res=res;
+  $('#hud').textContent=res?res.main:'';
+  $('#hint').textContent=hintFor()+(res&&res.sub?' · '+res.sub:'');
+}
+function showResult(r){
+  $('#mres').style.display='block';
+  $('#mresTxt').textContent=r.kind+' : '+r.main;
+  $('#mresSub').textContent=r.sub||'';
+}
+$('#mstart').onclick=()=>startAR($('#mmode').value);
+$('#msave').onclick=()=>{
+  if(!AR.res)return;
+  const h=store.get('hist',[]);h.unshift({d:new Date().toLocaleString('fr-FR'),t:AR.res.kind+' : '+AR.res.main,s:AR.res.sub||''});
+  store.set('hist',h.slice(0,100));renderHist();
+};
+function renderHist(){
+  const h=store.get('hist',[]);
+  $('#mhist').innerHTML=h.length?'<table>'+h.map(x=>`<tr><td>${esc(x.t)}<br><span class="muted">${esc(x.s)} · ${esc(x.d)}</span></td></tr>`).join('')+'</table>':'Aucune pour l\'instant.';
+}
+$('#mclear').onclick=()=>{if(confirm('Effacer toutes les mesures ?')){store.set('hist',[]);renderHist()}};
+renderHist();
+
+/* =====================================================================
+   PHOTO-COTATION
+   ===================================================================== */
+const pc=$('#pc'),px=pc.getContext('2d');
+const PH={img:null,scale:null,lines:[],tool:'dim',drag:null};
+function loadPhoto(f){
+  if(!f)return;
+  const im=new Image();
+  im.onload=()=>{
+    const k=Math.min(1,1600/Math.max(im.naturalWidth,im.naturalHeight));
+    pc.width=Math.round(im.naturalWidth*k);pc.height=Math.round(im.naturalHeight*k);
+    PH.img=im;PH.scale=null;PH.lines=[];PH.drag=null;
+    $('#phint').textContent='Photo chargée. Étalonnez d\'abord (ligne sur un objet de taille connue), puis cotez.';
+    drawPhoto();
+  };
+  im.src=URL.createObjectURL(f);
+}
+$('#pfile').onchange=e=>loadPhoto(e.target.files[0]);
+$('#pfile2').onchange=e=>loadPhoto(e.target.files[0]);
+function setTool(t){PH.tool=t;$('#tdim').classList.toggle('on',t==='dim');$('#tcal').classList.toggle('on',t==='cal')}
+$('#tdim').onclick=()=>setTool('dim');
+$('#tcal').onclick=()=>setTool('cal');
+$('#pundo').onclick=()=>{PH.lines.pop();drawPhoto()};
+$('#pclr').onclick=()=>{PH.lines=[];PH.scale=null;drawPhoto()};
+$('#pexp').onclick=()=>{
+  pc.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='cotation-'+Date.now()+'.png';a.click()},'image/png');
+};
+function ptOf(e){const r=pc.getBoundingClientRect();return{x:(e.clientX-r.left)*pc.width/r.width,y:(e.clientY-r.top)*pc.height/r.height}}
+function orthoFix(a,b){if(!$('#portho').checked)return b;return Math.abs(b.x-a.x)>=Math.abs(b.y-a.y)?{x:b.x,y:a.y}:{x:a.x,y:b.y}}
+pc.addEventListener('pointerdown',e=>{if(!PH.img)return;pc.setPointerCapture(e.pointerId);const p=ptOf(e);PH.drag={a:p,b:p};drawPhoto()});
+pc.addEventListener('pointermove',e=>{if(!PH.drag)return;PH.drag.b=orthoFix(PH.drag.a,ptOf(e));drawPhoto()});
+pc.addEventListener('pointerup',()=>{
+  const d=PH.drag;PH.drag=null;if(!d)return;
+  const len=Math.hypot(d.b.x-d.a.x,d.b.y-d.a.y);
+  if(len<10){drawPhoto();return}
+  if(PH.tool==='cal'){
+    const v=parseFloat(String(prompt('Longueur réelle de cette ligne (en cm) ?','29.7')||'').replace(',','.'));
+    if(v>0){PH.scale=len/v;PH.lines.forEach(l=>l.cal=false);PH.lines.push({a:d.a,b:d.b,cal:true,v});$('#phint').textContent='Étalonné : '+fmt(PH.scale)+' px/cm. Passez en « Coter ».';setTool('dim')}
+  }else{
+    PH.lines.push({a:d.a,b:d.b});
+  }
+  drawPhoto();
+});
+function drawPhoto(){
+  px.clearRect(0,0,pc.width,pc.height);
+  if(!PH.img){px.fillStyle='#111';px.fillRect(0,0,pc.width,pc.height);px.fillStyle='#888';px.font='28px sans-serif';px.textAlign='center';px.fillText('Prenez ou choisissez une photo',pc.width/2,pc.height/2);return}
+  px.drawImage(PH.img,0,0,pc.width,pc.height);
+  const all=PH.lines.slice();if(PH.drag)all.push(Object.assign({tmp:true},PH.drag));
+  const fs=Math.max(18,Math.round(pc.width/42));
+  all.forEach(l=>{
+    const col=l.cal?'#4ad1ff':'#ffb347';
+    pt(l.a,l.b,col);
+    const len=Math.hypot(l.b.x-l.a.x,l.b.y-l.a.y);
+    const txt=l.cal?fmt(l.v)+' cm (réf.)':(PH.scale?fmt(len/PH.scale)+' cm':Math.round(len)+' px');
+    pixLabel(l,txt,col,fs);
+  });
+}
+function pt(a,b,col){
+  pixStyle(col);
+  px.beginPath();px.moveTo(a.x,a.y);px.lineTo(b.x,b.y);px.stroke();
+  const ang=Math.atan2(b.y-a.y,b.x-a.x)+Math.PI/2,t=Math.max(8,pc.width/90);
+  [a,b].forEach(p=>{px.beginPath();px.moveTo(p.x-Math.cos(ang)*t,p.y-Math.sin(ang)*t);px.lineTo(p.x+Math.cos(ang)*t,p.y+Math.sin(ang)*t);px.stroke()});
+}
+function pixStyle(col){px.strokeStyle=col;px.lineWidth=Math.max(3,pc.width/300);px.lineCap='round'}
+function pixLabel(l,txt,col,fs){
+  const mx=(l.a.x+l.b.x)/2,my=(l.a.y+l.b.y)/2;
+  px.font='bold '+fs+'px sans-serif';px.textAlign='center';px.textBaseline='middle';
+  const w=px.measureText(txt).width+14;
+  px.fillStyle='rgba(0,0,0,.75)';px.fillRect(mx-w/2,my-fs/2-6,w,fs+12);
+  px.fillStyle=col;px.fillText(txt,mx,my);
+}
+drawPhoto();
+
+/* =====================================================================
+   ATELIER 3D (modèle paramétrique en cm)
+   ===================================================================== */
+const PRESETS={
+  table:()=>({name:'Table 120×70',parts:[
+    {n:'Plateau',t:'box',w:120,h:3,d:70,x:0,y:73.5,z:0,c:'#c8975a'},
+    {n:'Pied AVG',t:'box',w:6,h:72,d:6,x:-55,y:36,z:-30,c:'#a97a43'},
+    {n:'Pied AVD',t:'box',w:6,h:72,d:6,x:55,y:36,z:-30,c:'#a97a43'},
+    {n:'Pied ARG',t:'box',w:6,h:72,d:6,x:-55,y:36,z:30,c:'#a97a43'},
+    {n:'Pied ARD',t:'box',w:6,h:72,d:6,x:55,y:36,z:30,c:'#a97a43'}]}),
+  etagere:()=>({name:'Étagère 80×180×30',parts:[
+    {n:'Montant G',t:'box',w:2.2,h:180,d:30,x:-38.9,y:90,z:0,c:'#b8884f'},
+    {n:'Montant D',t:'box',w:2.2,h:180,d:30,x:38.9,y:90,z:0,c:'#b8884f'},
+    {n:'Planche 1',t:'box',w:75.6,h:2.2,d:30,x:0,y:1.1,z:0,c:'#d1a468'},
+    {n:'Planche 2',t:'box',w:75.6,h:2.2,d:30,x:0,y:46,z:0,c:'#d1a468'},
+    {n:'Planche 3',t:'box',w:75.6,h:2.2,d:30,x:0,y:91,z:0,c:'#d1a468'},
+    {n:'Planche 4',t:'box',w:75.6,h:2.2,d:30,x:0,y:136,z:0,c:'#d1a468'},
+    {n:'Planche 5',t:'box',w:75.6,h:2.2,d:30,x:0,y:178.9,z:0,c:'#d1a468'}]}),
+  tabouret:()=>({name:'Tabouret Ø35',parts:[
+    {n:'Assise',t:'cyl',w:35,h:3,d:35,x:0,y:46.5,z:0,c:'#c8975a'},
+    {n:'Pied 1',t:'cyl',w:4,h:45,d:4,x:-10,y:22.5,z:-10,c:'#a97a43'},
+    {n:'Pied 2',t:'cyl',w:4,h:45,d:4,x:10,y:22.5,z:-10,c:'#a97a43'},
+    {n:'Pied 3',t:'cyl',w:4,h:45,d:4,x:-10,y:22.5,z:10,c:'#a97a43'},
+    {n:'Pied 4',t:'cyl',w:4,h:45,d:4,x:10,y:22.5,z:10,c:'#a97a43'}]})
+};
+let model=store.get('model',null)||PRESETS.table();
+function buildGroup(m){
+  const g=new THREE.Group();
+  m.parts.forEach(p=>{
+    const geo=p.t==='cyl'?new THREE.CylinderGeometry(p.w/2,p.w/2,p.h,32):new THREE.BoxGeometry(p.w,p.h,p.d);
+    const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:p.c||'#c8975a',roughness:.75}));
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:0x2b1d12})));
+    mesh.position.set(p.x,p.y,p.z);g.add(mesh);
+  });
+  return g;
+}
+function bbox(m){const g=buildGroup(m);const b=new THREE.Box3().setFromObject(g);const s=new THREE.Vector3();b.getSize(s);return s}
+function globalDimsText(){const s=bbox(model);return fmt(s.x)+' × '+fmt(s.z)+' × H '+fmt(s.y)+' cm'}
+
+let ED=null;
+function initEditor(){
+  const el=$('#sc');
+  const r=new THREE.WebGLRenderer({antialias:true});
+  r.setPixelRatio(Math.min(2,window.devicePixelRatio));
+  el.appendChild(r.domElement);
+  const sc=new THREE.Scene();sc.background=new THREE.Color(0x150e08);
+  const cam=new THREE.PerspectiveCamera(45,1,1,3000);cam.position.set(180,140,220);
+  sc.add(new THREE.HemisphereLight(0xffffff,0x554433,1.0));
+  const dl=new THREE.DirectionalLight(0xffffff,0.9);dl.position.set(150,300,200);sc.add(dl);
+  sc.add(new THREE.GridHelper(400,40,0x6b4f33,0x3a2a1b));
+  sc.add(new THREE.AxesHelper(30));
+  const ctl=new THREE.OrbitControls(cam,r.domElement);ctl.target.set(0,50,0);ctl.enableDamping=true;
+  ED={r,sc,cam,ctl,group:null};
+  new ResizeObserver(resizeEditor).observe(el);
+  (function loop(){requestAnimationFrame(loop);if(curView==='a'&&!AR.session){ctl.update();r.render(sc,cam)}})();
+}
+function resizeEditor(){
+  if(!ED)return;const el=$('#sc');const w=el.clientWidth,h=el.clientHeight;if(!w||!h)return;
+  ED.r.setSize(w,h);ED.cam.aspect=w/h;ED.cam.updateProjectionMatrix();
+}
+function rebuild3D(fit){
+  if(ED.group){ED.sc.remove(ED.group);ED.group.traverse(c=>c.geometry&&c.geometry.dispose())}
+  ED.group=buildGroup(model);ED.sc.add(ED.group);
+  const s=bbox(model);$('#mglob').textContent=fmt(s.x)+' × '+fmt(s.z)+' × H '+fmt(s.y)+' cm';
+  if(fit){const m=Math.max(s.x,s.y,s.z);ED.cam.position.set(m*1.3,m*0.9,m*1.5);ED.ctl.target.set(0,s.y/2,0)}
+  renderCut();store.set('model',model);
+}
+const vol=p=>p.t==='cyl'?Math.PI*Math.pow(p.w/2,2)*p.h/1000:p.w*p.h*p.d/1000;
+function renderCut(){
+  let tot=0;
+  const rows=model.parts.map(p=>{const v=vol(p);tot+=v;
+    const dim=p.t==='cyl'?'Ø '+fmt(p.w)+' × '+fmt(p.h):fmt(p.w)+' × '+fmt(p.d)+' × '+fmt(p.h);
+    return `<tr><td>${esc(p.n)}</td><td>${dim}</td><td>${fmt(v)} L</td></tr>`}).join('');
+  $('#cut').innerHTML=`<table><tr><th>Pièce</th><th>Dimensions (cm)</th><th>Vol.</th></tr>${rows}<tr><th colspan="2">Total matière</th><th>${fmt(tot)} L</th></tr></table>`;
+}
+const LAB={w:'Long./Ø',h:'Haut.',d:'Prof.',x:'X',y:'Y (centre)',z:'Z'};
+function renderParts(){
+  const box=$('#parts');box.innerHTML='';
+  model.parts.forEach((p,i)=>{
+    const keys=p.t==='cyl'?['w','h','x','y','z']:['w','h','d','x','y','z'];
+    const d=document.createElement('div');d.className='part';d.dataset.i=i;
+    d.innerHTML=`<div class="prow"><input class="nm" value="${esc(p.n)}"><select class="ty"><option value="box"${p.t==='box'?' selected':''}>Pavé</option><option value="cyl"${p.t==='cyl'?' selected':''}>Cylindre</option></select><input class="co" type="color" value="${p.c||'#c8975a'}"><button class="x">✕</button></div><div class="grid">${keys.map(k=>`<div><label>${p.t==='cyl'&&k==='w'?'Ø':LAB[k]}</label><input type="number" step="0.1" data-k="${k}" value="${p[k]}"></div>`).join('')}</div>`;
+    box.appendChild(d);
+  });
+  $('#mname').value=model.name||'';
+}
+$('#parts').addEventListener('input',e=>{
+  const row=e.target.closest('.part');if(!row)return;const p=model.parts[+row.dataset.i];const t=e.target;
+  if(t.dataset.k){p[t.dataset.k]=parseFloat(t.value)||0;if(p.t==='cyl')p.d=p.w}
+  else if(t.classList.contains('nm'))p.n=t.value;
+  else if(t.classList.contains('co'))p.c=t.value;
+  else if(t.classList.contains('ty')){p.t=t.value;if(p.t==='cyl')p.d=p.w;renderParts()}
+  rebuild3D(false);
+});
+$('#parts').addEventListener('click',e=>{
+  if(!e.target.classList.contains('x'))return;
+  const i=+e.target.closest('.part').dataset.i;model.parts.splice(i,1);renderParts();rebuild3D(false);
+});
+$('#addbox').onclick=()=>{model.parts.push({n:'Pièce '+(model.parts.length+1),t:'box',w:50,h:2,d:30,x:0,y:1,z:0,c:'#c8975a'});renderParts();rebuild3D(false)};
+$('#addcyl').onclick=()=>{model.parts.push({n:'Pièce '+(model.parts.length+1),t:'cyl',w:10,h:30,d:10,x:0,y:15,z:0,c:'#c8975a'});renderParts();rebuild3D(false)};
+$('#mname').oninput=e=>{model.name=e.target.value;store.set('model',model)};
+$('#mpreb').onclick=()=>{if(confirm('Remplacer le meuble en cours ?')){model=PRESETS[$('#mpre').value]();renderParts();rebuild3D(true)}};
+function refreshProjects(){
+  const P=store.get('projects',{});const s=$('#mload');
+  s.innerHTML=Object.keys(P).length?Object.keys(P).map(k=>`<option>${esc(k)}</option>`).join(''):'<option value="">(aucun projet enregistré)</option>';
+}
+$('#msv').onclick=()=>{
+  const n=(model.name||'').trim();if(!n){alert('Donnez un nom au meuble.');return}
+  const P=store.get('projects',{});P[n]=JSON.parse(JSON.stringify(model));store.set('projects',P);refreshProjects();$('#mload').value=n;
+};
+$('#mld').onclick=()=>{
+  const P=store.get('projects',{});const k=$('#mload').value;if(!k||!P[k])return;
+  model=JSON.parse(JSON.stringify(P[k]));renderParts();rebuild3D(true);
+};
+$('#mexp').onclick=()=>{
+  const b=new Blob([JSON.stringify(model,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=(model.name||'meuble').replace(/[^\w-]+/g,'_')+'.json';a.click();
+};
+$('#mimp').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const m=JSON.parse(r.result);if(!Array.isArray(m.parts))throw 0;model=m;renderParts();rebuild3D(true)}catch(x){alert('Fichier invalide.')}};
+  r.readAsText(f);
+};
+$('#mar').onclick=()=>startAR('place');
+
+initEditor();renderParts();refreshProjects();rebuild3D(true);resizeEditor();
+
+/* ---------- PWA ---------- */
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "AtelierAR — Menuiserie",
+  "short_name": "AtelierAR",
+  "description": "Mesure AR, photo-cotation et modélisation 3D de meubles pour menuisiers",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1d140c",
+  "theme_color": "#2b1d12",
+  "lang": "fr",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
