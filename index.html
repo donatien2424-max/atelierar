@@ -223,19 +223,35 @@ async function startAR(mode){
   }else{
     $('#hint').textContent=hintFor();$('#hud').textContent='';
   }
-  let session;
-  try{
-    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:ov}});
-  }catch(e){alert('Impossible de démarrer la AR : '+e.message);return}
+  let session=null,lastErr=null;
+  ov.style.display='block';ov.style.zIndex=2;
+  const CFGS=[
+    {requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:ov}},
+    {requiredFeatures:['hit-test']},
+    {optionalFeatures:['hit-test']}
+  ];
+  for(const c of CFGS){
+    try{session=await navigator.xr.requestSession('immersive-ar',c);break}
+    catch(e){lastErr=e}
+  }
+  if(!session){
+    ov.style.display='none';
+    alert('Impossible de démarrer la AR : '+(lastErr&&lastErr.message)+'\n\nVérifiez sur le téléphone : 1) l\'application « Services Google Play pour la RA » est installée et à jour (Play Store), 2) Chrome est à jour, 3) le téléphone est compatible ARCore (liste : developers.google.com/ar/devices), 4) la caméra est autorisée pour ce site.');
+    return;
+  }
   AR.session=session;
-  ov.style.display='block';
   document.body.appendChild(AR.r.domElement);
   AR.r.domElement.style.cssText='position:fixed;inset:0;width:100%;height:100%;z-index:1';
-  ov.style.zIndex=2;
   AR.r.xr.setReferenceSpaceType('local');
   await AR.r.xr.setSession(session);
-  const vs=await session.requestReferenceSpace('viewer');
-  AR.hit=await session.requestHitTestSource({space:vs});
+  try{
+    const vs=await session.requestReferenceSpace('viewer');
+    AR.hit=await session.requestHitTestSource({space:vs});
+  }catch(e){
+    session.end();
+    alert('Ce téléphone ne permet pas la détection des surfaces (hit-test) dans le navigateur : la mesure AR est impossible ici. Utilisez l\'onglet Photo.');
+    return;
+  }
   ov.addEventListener('beforexrselect',e=>e.preventDefault());
   session.addEventListener('select',onSelect);
   session.addEventListener('end',()=>{
